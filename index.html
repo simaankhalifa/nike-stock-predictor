@@ -75,7 +75,7 @@
         async function runLivePrediction() {
             startLoading("Fetching live market data & generating prediction...");
             try {
-                const response = await fetch('http://127.0.0.1:8000/predict_live');
+                const response = await fetch('https://nike-stock-predictor-2.onrender.com/predict_live');
                 const data = await response.json();
 
                 if (data.status === 'success') {
@@ -111,7 +111,7 @@
 
             startLoading(`Analyzing 60 days prior to ${dateInput}...`);
             try {
-                const response = await fetch(`http://127.0.0.1:8000/predict_historical?target_date=${dateInput}`);
+                const response = await fetch(`https://nike-stock-predictor-2.onrender.com/predict_historical?target_date=${dateInput}`);
                 const data = await response.json();
 
                 if (data.status === 'success') {
