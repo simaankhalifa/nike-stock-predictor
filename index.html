@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nike AI Predictor Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-white font-sans min-h-screen flex flex-col justify-center items-center p-6">
+
+    <div class="bg-slate-800 rounded-3xl shadow-2xl p-8 max-w-2xl w-full border border-slate-700">
+        
+        <div class="text-center mb-8 border-b border-slate-700 pb-6">
+            <span class="text-5xl mb-4 block">👟</span>
+            <h1 class="text-4xl font-extrabold tracking-tight bg-gradient-to-r from-blue-400 via-indigo-500 to-purple-500 bg-clip-text text-transparent">
+                Nike AI Predictor Pro
+            </h1>
+            <p class="text-slate-400 mt-2 text-sm">Powered by LSTM Neural Networks & Live Market Data</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            
+            <div class="bg-slate-900 p-6 rounded-2xl border border-blue-900 shadow-lg relative overflow-hidden">
+                <div class="absolute top-0 right-0 bg-blue-600 text-xs font-bold px-3 py-1 rounded-bl-lg">LIVE DATA</div>
+                <h2 class="text-xl font-bold text-white mb-2">Tomorrow's Forecast</h2>
+                <p class="text-xs text-slate-400 mb-6">Pulls real-time data from Yahoo Finance to predict the next trading day.</p>
+                
+                <button id="live-btn" onclick="runLivePrediction()" class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold py-4 rounded-xl shadow-lg transition-all duration-300">
+                    Predict Tomorrow
+                </button>
+            </div>
+
+            <div class="bg-slate-900 p-6 rounded-2xl border border-slate-700 shadow-lg">
+                <h2 class="text-xl font-bold text-white mb-2">Model Backtester</h2>
+                <p class="text-xs text-slate-400 mb-4">Select a past date to test the AI's accuracy.</p>
+                
+                <input type="date" id="date-picker" class="w-full bg-slate-950 border border-slate-600 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 mb-4" min="2000-05-01" max="2026-12-31">
+                
+                <button id="hist-btn" onclick="runBacktest()" class="w-full bg-slate-700 hover:bg-slate-600 text-white font-bold py-3 rounded-xl transition-all duration-300">
+                    Run Analysis
+                </button>
+            </div>
+        </div>
+
+        <div id="loading-spinner" class="hidden flex flex-col items-center mt-8">
+            <div class="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+            <p class="text-sm text-slate-400 mt-3 animate-pulse" id="loading-text">Connecting to AI Server...</p>
+        </div>
+
+        <div id="result-box" class="hidden mt-8 bg-slate-950 rounded-2xl border border-slate-700 p-6">
+            <h3 class="text-center text-slate-300 text-sm font-semibold uppercase tracking-wider mb-4 border-b border-slate-800 pb-2" id="result-title">
+                Results
+            </h3>
+            
+            <div class="grid grid-cols-2 gap-4 text-center">
+                <div class="bg-slate-800 p-4 rounded-xl border border-slate-700">
+                    <p class="text-xs text-slate-400 mb-1" id="pred-label">AI Forecast</p>
+                    <p id="pred-price" class="text-3xl font-black text-blue-400">$0.00</p>
+                </div>
+                
+                <div class="bg-slate-800 p-4 rounded-xl border border-slate-700">
+                    <p class="text-xs text-slate-400 mb-1" id="actual-label">Actual Price</p>
+                    <p id="actual-price" class="text-3xl font-black text-white">$0.00</p>
+                </div>
+            </div>
+
+            <div id="error-box" class="mt-4 bg-slate-900 p-3 rounded-xl text-center border border-slate-800">
+                <p class="text-sm text-slate-400">Model Error: <span id="error-margin" class="font-bold text-orange-400 text-lg ml-2">$0.00</span></p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Live Prediction Logic ---
+        async function runLivePrediction() {
+            startLoading("Fetching live market data & generating prediction...");
+            try {
+                const response = await fetch('http://127.0.0.1:8000/predict_live');
+                const data = await response.json();
+
+                if (data.status === 'success') {
+                    // Update Title
+                    document.getElementById('result-title').innerText = "Live Forecast for Next Trading Day";
+                    
+                    // Update AI Box
+                    document.getElementById('pred-label').innerText = `AI Forecast (${data.predicted_date})`;
+                    document.getElementById('pred-price').innerText = `$${data.predicted_tomorrow_price.toFixed(2)}`;
+                    
+                    // Update Actual Box
+                    document.getElementById('actual-label').innerText = `Today's Close (${data.latest_trading_day})`;
+                    document.getElementById('actual-price').innerText = `$${data.latest_actual_price.toFixed(2)}`;
+                    
+                    // Hide Error Box (since tomorrow hasn't happened yet, we can't measure error!)
+                    document.getElementById('error-box').classList.add('hidden');
+                    
+                    showResults();
+                } else {
+                    alert("Data Error: " + data.message);
+                    hideLoading();
+                }
+            } catch (error) {
+                alert("Connection failed. Is your FastAPI server running in the terminal?");
+                hideLoading();
+            }
+        }
+
+        // --- Historical Backtester Logic ---
+        async function runBacktest() {
+            const dateInput = document.getElementById('date-picker').value;
+            if (!dateInput) return alert("Please select a date from the calendar!");
+
+            startLoading(`Analyzing 60 days prior to ${dateInput}...`);
+            try {
+                const response = await fetch(`http://127.0.0.1:8000/predict_historical?target_date=${dateInput}`);
+                const data = await response.json();
+
+                if (data.status === 'success') {
+                    // Update Title
+                    document.getElementById('result-title').innerText = `Backtest Results for ${data.date}`;
+                    
+                    // Update AI Box
+                    document.getElementById('pred-label').innerText = `AI Forecast (${data.date})`;
+                    document.getElementById('pred-price').innerText = `$${data.predicted_price.toFixed(2)}`;
+                    
+                    // Update Actual Box
+                    document.getElementById('actual-label').innerText = "Actual Market Price";
+                    document.getElementById('actual-price').innerText = `$${data.actual_price.toFixed(2)}`;
+                    
+                    // Show Error Box (since this is the past, we know exactly how accurate the AI was)
+                    document.getElementById('error-margin').innerText = `$${data.error_margin.toFixed(2)}`;
+                    document.getElementById('error-box').classList.remove('hidden');
+                    
+                    showResults();
+                } else {
+                    alert("Data Error: " + data.message);
+                    hideLoading();
+                }
+            } catch (error) {
+                alert("Connection failed. Is your FastAPI server running in the terminal?");
+                hideLoading();
+            }
+        }
+
+        // --- UI Helper Functions ---
+        function startLoading(text) {
+            document.getElementById('result-box').classList.add('hidden');
+            document.getElementById('loading-spinner').classList.remove('hidden');
+            document.getElementById('loading-text').innerText = text;
+        }
+        function hideLoading() {
+            document.getElementById('loading-spinner').classList.add('hidden');
+        }
+        function showResults() {
+            hideLoading();
+            document.getElementById('result-box').classList.remove('hidden');
+        }
+    </script>
+</body>
+</html>
